@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lead Lists Dashboard</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #1e293b; }
+        .header h1 { font-size: 24px; color: #f8fafc; }
+        .header .stats { display: flex; gap: 20px; }
+        .stat-card { background: #1e293b; padding: 15px 20px; border-radius: 8px; text-align: center; }
+        .stat-card .value { font-size: 28px; font-weight: bold; color: #60a5fa; }
+        .stat-card .label { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+        .section { background: #1e293b; border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+        .section h2 { font-size: 18px; margin-bottom: 16px; color: #f1f5f9; }
+        .form-row { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+        .form-group { flex: 1; min-width: 200px; }
+        .form-group label { display: block; font-size: 13px; color: #94a3b8; margin-bottom: 6px; }
+        .form-group input, .form-group select { width: 0%; padding: 10px 14px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #e2e8f0; font-size: 14px; }
+        .form-group input:focus, .form-group select:focus { outline: none; border-color: #60a5fa; }
+        .btn { padding: 10px 20px; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+        .btn-primary { background: #3b82f6; color: white; }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-secondary { background: #334155; color: #e2e8f0; }
+        .btn-secondary:hover { background: #475569; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #334155; font-size: 14px; }
+        th { color: #94a3b8; font-weight: 500; font-size: 12px; text-transform: uppercase; }
+        tr:hover { background: #0f172a; }
+        .badge { padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+        .badge-success { background: #064e3b; color: #34d399; }
+        .badge-running { background: #1e3a5f; color: #60a5fa; }
+        .badge-pending { background: #451a03; color: #fbbf24; }
+        .actions { display: flex; gap: 8px; }
+        .actions .btn { padding: 6px 12px; font-size: 12px; }
+        .loading { text-align: center; padding: 40px; color: #94a3b8; }
+        .empty { text-align: center; padding: 60px; color: #64748b; }
+        .toast { position: fixed; bottom: 20px; right: 20px; padding: 14px 20px; border-radius: 8px; background: #1e293b; border: 1px solid #334155; color: #e2e8f0; font-size: 14px; z-index: 1000; }
+        .toast.success { border-color: #34d399; }
+        .toast.error { border-color: #f87171; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect, useCallback } = React;
+
+        const API_BASE = window.location.origin.replace(':8092', ':8091');
+
+        function App() {
+            const [jobs, setJobs] = useState([]);
+            const [stats, setStats] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [toast, setToast] = useState(null);
+            const [form, setForm] = useState({
+                query: '',
+                location: '',
+                sources: ['yellow_pages', 'yelp', 'bbb'],
+                max_results: 50
+            });
+
+            const showToast = (message, type = 'success') => {
+                setToast({ message, type });
+                setTimeout(() => setToast(null), 3000);
+            };
+
+            const fetchJobs = useCallback(async () => {
+                try {
+                    const res = await fetch(`${API_BASE}/jobs`);
+                    const data = await res.json();
+                    setJobs(data.jobs || []);
+                } catch (e) {
+                    console.error('Failed to fetch jobs:', e);
+                }
+            }, []);
+
+            const fetchStats = useCallback(async () => {
+                try {
+                    const res = await fetch(`${API_BASE}/stats`);
+                    const data = await res.json();
+                    setStats(data);
+                } catch (e) {
+                    console.error('Failed to fetch stats:', e);
+                }
+            }, []);
+
+            useEffect(() => {
+                const load = async () => {
+                    setLoading(true);
+                    await Promise.all([fetchJobs(), fetchStats()]);
+                    setLoading(false);
+                };
+                load();
+                const interval = setInterval(fetchJobs, 10000);
+                return () => clearInterval(interval);
+            }, [fetchJobs, fetchStats]);
+
+            const startScrape = async () => {
+                if (!form.query.trim()) {
+                    showToast('Please enter a search query', 'error');
+                    return;
+                }
+
+                try {
+                    const res = await fetch(`${API_BASE}/scrape`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            query: form.query,
+                            location: form.location,
+                            sources: form.sources,
+                            max_results: parseInt(form.max_results),
+                            job_name: `${form.query} in ${form.location || 'any location'}`
+                        })
+                    });
+
+                    if (res.ok) {
+                        showToast('Scrape job started!');
+                        setForm({ ...form, query: '', location: '' });
+                        setTimeout(fetchJobs, 2000);
+                    } else {
+                        const err = await res.json();
+                        showToast(err.detail || 'Failed to start scrape', 'error');
+                    }
+                } catch (e) {
+                    showToast('Network error — is the API running?', 'error');
+                }
+            };
+
+            const viewLeads = async (jobId) => {
+                window.open(`${API_BASE}/jobs/${jobId}/leads`, '_blank');
+            };
+
+            const exportLeads = async (jobId, format = 'csv') => {
+                try {
+                    const res = await fetch(`${API_BASE}/export`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ job_id: jobId, format })
+                    });
+
+                    if (res.ok) {
+                        const data = await res.json();
+                        showToast(`Exported ${data.lead_count} leads!`);
+                        window.open(`${API_BASE}${data.download_url}`, '_blank');
+                    } else {
+                        showToast('Export failed', 'error');
+                    }
+                } catch (e) {
+                    showToast('Export error', 'error');
+                }
+            };
+
+            const getStatusBadge = (status) => {
+                const classes = {
+                    'completed': 'badge-success',
+                    'running': 'badge-running',
+                    'pending': 'badge-pending'
+                };
+                return <span className={`badge ${classes[status] || 'badge-pending'}`}>{status}</span>;
+            };
+
+            if (loading) return <div className="container"><div className="loading">Loading dashboard...</div></div>;
+
+            return (
+                <div className="container">
+                    <div className="header">
+                        <h1>🎯 Lead Lists Dashboard</h1>
+                        <div className="stats">
+                            <div className="stat-card">
+                                <div className="value">{stats?.total_leads || 0}</div>
+                                <div className="label">Total Leads</div>
+                            </div>
+                            <div className="stat-card">
+                                <div className="value">{stats?.completed_jobs || 0}</div>
+                                <div className="label">Completed Jobs</div>
+                            </div>
+                            <div className="stat-card">
+                                <div className="value">{jobs.filter(j => j.status === 'running').length}</div>
+                                <div className="label">Running</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="section">
+                        <h2>Start New Scrape</h2>
+                        <div className="form-row">
+                            <div className="form-group">
+                                <label>Industry / Keyword *</label>
+                                <input
+                                    type="text"
+                                    placeholder="e.g., dentist, plumber, restaurant"
+                                    value={form.query}
+                                    onChange={(e) => setForm({ ...form, query: e.target.value })}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Location</label>
+                                <input
+                                    type="text"
+                                    placeholder="e.g., Jakarta, New York, London"
+                                    value={form.location}
+                                    onChange={(e) => setForm({ ...form, location: e.target.value })}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Max Results per Source</label>
+                                <input
+                                    type="number"
+                                    min="10"
+                                    max="200"
+                                    value={form.max_results}
+                                    onChange={(e) => setForm({ ...form, max_results: e.target.value })}
+                                />
+                            </div>
+                        </div>
+                        <button className="btn btn-primary" onClick={startScrape}>
+                            🚀 Start Scraping
+                        </button>
+                    </div>
+
+                    <div className="section">
+                        <h2>Scrape Jobs</h2>
+                        {jobs.length === 0 ? (
+                            <div className="empty">No scrape jobs yet. Start one above!</div>
+                        ) : (
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Sources</th>
+                                        <th>Status</th>
+                                        <th>Leads Found</th>
+                                        <th>Created</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {jobs.map(job => (
+                                        <tr key={job.id}>
+                                            <td><strong>{job.name}</strong></td>
+                                            <td>{job.source}</td>
+                                            <td>{getStatusBadge(job.status)}</td>
+                                            <td>{job.total_found}</td>
+                                            <td>{new Date(job.created_at).toLocaleString()}</td>
+                                            <td className="actions">
+                                                {job.status === 'completed' && job.total_found > 0 && (
+                                                    <>
+                                                        <button className="btn btn-secondary" onClick={() => viewLeads(job.id)}>
+                                                            View Leads
+                                                        </button>
+                                                        <button className="btn btn-primary" onClick={() => exportLeads(job.id, 'csv')}>
+                                                            Export CSV
+                                                        </button>
+                                                    </>
+                                                )}
+                                                {job.status === 'running' && (
+                                                    <span style={{ color: '#60a5fa' }}>⏳ Scraping...</span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+
+                    {stats && stats.top_cities && stats.top_cities.length > 0 && (
+                        <div className="section">
+                            <h2>Top Cities</h2>
+                            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                                {stats.top_cities.map(city => (
+                                    <div key={city.city} style={{ background: '#0f172a', padding: '10px 16px', borderRadius: '6px', fontSize: '14px' }}>
+                                        <strong>{city.city || 'Unknown'}</strong>
+                                        <span style={{ color: '#94a3b8', marginLeft: '8px' }}>{city.count} leads</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {toast && (
+                        <div className={`toast ${toast.type}`}>
+                            {toast.message}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+version: "3.8"
+
+services:
+  lead-lists-api:
+    build: .
+    container_name: lead-lists-api
+    ports:
+      - "8091:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./output:/app/output
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  lead-lists-dashboard:
+    image: nginx:alpine
+    container_name: lead-lists-dashboard
+    ports:
+      - "8092:80"
+    volumes:
+      - ./src/dashboard/build:/usr/share/nginx/html
+    restart: unless-stopped

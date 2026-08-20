@@ -1,0 +1,8 @@
+# Git ignore
+.env
+data/
+output/
+*.pyc
+__pycache__/
+.DS_Store
+*.log
