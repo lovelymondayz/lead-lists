@@ -2,7 +2,9 @@ version: "3.8"
 
 services:
   lead-lists-api:
-    build: .
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: lead-lists-api
     ports:
       - "8091:8000"

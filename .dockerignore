@@ -1,0 +1,15 @@
+node_modules
+.env
+.git
+dist
+build
+*.log
+.DS_Store
+backend/.env
+frontend/.env
+__pycache__
+*.pyc
+.coverage
+.pytest_cache
+.mypy_cache
+.ruff_cache
