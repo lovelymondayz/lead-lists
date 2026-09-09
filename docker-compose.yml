@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   lead-lists-api:
     build:
@@ -14,6 +12,11 @@ services:
       - ./data:/app/data
       - ./output:/app/output
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -28,3 +31,8 @@ services:
     volumes:
       - ./src/dashboard/build:/usr/share/nginx/html
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

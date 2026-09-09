@@ -8,14 +8,15 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o server ./cmd/server
 
 FROM alpine:3.19
-RUN apk add --no-cache ca-certificates curl
+RUN apk add --no-cache ca-certificates curl && adduser -D -u 1000 leadlists
 WORKDIR /app
 COPY --from=builder /app/server .
 
-RUN mkdir -p /app/data /app/output
+RUN mkdir -p /app/data /app/output && chown -R leadlists:leadlists /app
+
+USER leadlists
+
 ENV PORT=8000
 EXPOSE 8000
-CMD ["./server"]
 
-# Run as non-root
-USER 1000:1000
+CMD ["./server"]
